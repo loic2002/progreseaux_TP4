@@ -157,7 +157,7 @@ func main() {
 
         go handleConnection(conn, chars, nodeId)
     }
-
+    
 }
 
 func handleConnection(conn net.Conn, chars string, nodeId string) {
@@ -176,8 +176,88 @@ func handleConnection(conn net.Conn, chars string, nodeId string) {
         fmt.Println("Checking if the message is in the range")
         fmt.Println("Range:", chars)
         fmt.Println("Message:", message)
-        if checkRange(message, chars) && !isForwarded{
-            response := "Found it!\n"
+
+        //split message by space
+        split := strings.Split(message, " ")
+        if checkRange(split[1], chars) && !isForwarded{
+            response := "Found it!"
+            
+            switch split[0] {
+            case "add":
+                fmt.Println("Adding file to node", nodeId)
+                // Open file servers and read line by line
+                file, err := os.OpenFile(data + nodeId +"/"+ split[1], os.O_WRONLY|os.O_CREATE, 0644)
+                if err != nil {
+                    fmt.Println("Error:", err)
+                    return
+                }
+                defer file.Close()
+                fmt.Println("Writing file")
+                // add all split after the first one
+                fmt.Println("Split:", message)
+                for i := 2; i < len(split); i++ {
+                    // Write the line to the file. if has \n add it
+                    if split[i] == "\\n" {
+                        fmt.Println("New line")
+                        if _, err := file.WriteString("\n"); err != nil {
+                            fmt.Println("Error:", err)
+                            return
+                        }
+                    }else{
+                        fmt.Println("Writing:", split[i])
+                        if _, err := file.WriteString(split[i]); err != nil {
+                            fmt.Println("Error:", err)
+                            return
+                        }
+                    }
+
+                    // Add space between words
+                    if i != len(split) - 1 {
+                        if _, err := file.WriteString(" "); err != nil {
+                            fmt.Println("Error:", err)
+                            return
+                        }
+                    }
+                }
+
+                fmt.Println("File added")
+                break
+            case "get":
+                fmt.Println("Getting file from node", nodeId)
+                // Open file servers and read line by line
+                file, err := os.Open(data + nodeId +"/"+ split[1])
+                if err != nil {
+                    fmt.Println("Error:", err)
+                    return
+                }
+                defer file.Close()
+                fmt.Println("Reading file")
+                scanner := bufio.NewScanner(file)
+                content := ""
+                for scanner.Scan() {
+                    // Get the line
+                    line := scanner.Text()
+                    content += line + "\\n"
+                }
+                fmt.Println("Sending file")
+                response += content
+                fmt.Println("File sent")
+                break
+            case "del":
+                fmt.Println("Deleting file from node", nodeId)
+                // Open file servers and read line by line
+                err := os.Remove(data + nodeId +"/"+ split[1])
+                if err != nil {
+                    fmt.Println("Error:", err)
+                    return
+                }
+                fmt.Println("File deleted")
+                break
+
+            default:
+                fmt.Println("Command not found")
+            }
+
             _, err := conn.Write([]byte(response + "\n"))
             if err != nil {
                 fmt.Println("Failed to send response to peer:", err)
@@ -188,7 +268,8 @@ func handleConnection(conn net.Conn, chars string, nodeId string) {
             isForwarded = true
             fmt.Println("Not found, forwarding to next server")
             responsePeer := connectToPeer(getRoutingNextHop(nodeId,message), message)
-            if responsePeer == "Found it!" {
+            // if message contains "Found it!" send it
+            if strings.Contains(responsePeer, "Found it!")  {
                 _, err := conn.Write([]byte(responsePeer + "\n"))
                 if err != nil {
                     fmt.Println("Failed to send response to peer:", err)
@@ -256,8 +337,7 @@ func checkRange(message string, letter string) (bool){
     ascii2Up := int(strings.ToUpper(letter)[2])
     // Get ascii value of the first letter of the message
     ascii3 := int(message[0])
-
-
+    
     // Check if the first letter of the message is in the range
     if ascii3 >= asciiLower && ascii3 <= ascii2Lower || ascii3 >= asciiUp && ascii3 <= ascii2Up {
         fmt.Println("Found it!")
