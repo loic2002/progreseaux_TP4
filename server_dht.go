@@ -109,7 +109,7 @@ func main() {
 
     if len(os.Args) != 3 && len(os.Args) != 5 {
         fmt.Println("Usage: go run server.go <local_address> <nodeId>")
-        fmt.Println("Usage: go run server.go <local_address> <chars> <peer_address> <nodeId>")
+        fmt.Println("Usage: go run server.go <local_address> <char_range:A-B> <peer_address> <nodeId>")
         os.Exit(1)
     }
     
