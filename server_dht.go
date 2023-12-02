@@ -6,6 +6,7 @@ import (
     "net"
     "os"
     "strings"
+    "io/ioutil"
 )
 
 const (
@@ -169,117 +170,86 @@ func handleConnection(conn net.Conn, chars string, nodeId string) {
     
     // Read and display messages from the remote peer.
     scanner := bufio.NewScanner(conn)
-    isForwarded := false
+    message := ""
+    isForward := false
+    response := ""
     for scanner.Scan() {
-        message := scanner.Text()
-        fmt.Printf("Received from %s: %s\n", remoteAddress, message)
-        fmt.Println("Checking if the message is in the range")
-        fmt.Println("Range:", chars)
-        fmt.Println("Message:", message)
+        message += scanner.Text() + "\n"
+        if strings.Contains(scanner.Text(),"xENDx") {
+                split := strings.Split(message, " ")
+                if checkRange(split[1],chars) && !isForward {
+                    response = "Found it!"
 
-        //split message by space
-        split := strings.Split(message, " ")
-        if checkRange(split[1], chars) && !isForwarded{
-            response := "Found it!"
-            
-            switch split[0] {
-            case "add":
-                fmt.Println("Adding file to node", nodeId)
-                // Open file servers and read line by line
-                file, err := os.OpenFile(data + nodeId +"/"+ split[1], os.O_WRONLY|os.O_CREATE, 0644)
-                if err != nil {
-                    fmt.Println("Error:", err)
-                    return
-                }
-                defer file.Close()
-                fmt.Println("Writing file")
-                // add all split after the first one
-                fmt.Println("Split:", message)
-                for i := 2; i < len(split); i++ {
-                    // Write the line to the file. if has \n add it
-                    if split[i] == "\\n" {
-                        fmt.Println("New line")
-                        if _, err := file.WriteString("\n"); err != nil {
-                            fmt.Println("Error:", err)
-                            return
-                        }
-                    }else{
-                        fmt.Println("Writing:", split[i])
-                        if _, err := file.WriteString(split[i]); err != nil {
-                            fmt.Println("Error:", err)
-                            return
-                        }
+                //  message contain add, del, get
+                if strings.Contains(message, "add") {
+                    fmt.Println("Add")
+                    // Add the file to the server
+                    file, err := os.OpenFile(data + nodeId +"/"+split[1], os.O_WRONLY|os.O_CREATE, 0644)
+                    if err != nil {
+                        fmt.Println("Error:", err)
+                        return
                     }
 
-                    // Add space between words
-                    if i != len(split) - 1 {
-                        if _, err := file.WriteString(" "); err != nil {
-                            fmt.Println("Error:", err)
-                            return
-                        }
+                    defer file.Close()
+
+                    if _, err := file.WriteString(strings.Join(split[2:], " ")); err != nil {
+                        fmt.Println("Error:", err)
+                        return
                     }
+
+                } else if strings.Contains(message, "del") {
+                    fmt.Println("Del")
+                    // Delete the file from the server
+                    
+                    err := os.Remove(data + nodeId +"/"+split[1])
+                    if err != nil {
+                        fmt.Println("Error:", err)
+                        return
+                    }
+                    
+
+
+                } else if strings.Contains(message, "get") {
+                    fmt.Println("Get")
+                    // Get the file from the server
+                    fileByte, err := ioutil.ReadFile(data + nodeId +"/"+split[1])
+                    if err != nil {
+                        fmt.Println("Error:", err)
+                        return
+                    }
+                    response  += " " + string(fileByte)
+
+                } else {
+                    fmt.Println("Not a valid command")
                 }
 
-                fmt.Println("File added")
-                break
-            case "get":
-                fmt.Println("Getting file from node", nodeId)
-                // Open file servers and read line by line
-                file, err := os.Open(data + nodeId +"/"+ split[1])
+                fmt.Println("Send response to peer:", response)
+                _, err := conn.Write([]byte(response + " xENDx " + "\n"))
                 if err != nil {
-                    fmt.Println("Error:", err)
+                    fmt.Println("Failed to send message to peer:", err)
                     return
                 }
-                defer file.Close()
-                fmt.Println("Reading file")
-                scanner := bufio.NewScanner(file)
-                content := ""
-                for scanner.Scan() {
-                    // Get the line
-                    line := scanner.Text()
-                    content += line + "\\n"
-                }
-                fmt.Println("Sending file")
-                response += content
-                fmt.Println("File sent")
-                break
-            case "del":
-                fmt.Println("Deleting file from node", nodeId)
-                // Open file servers and read line by line
-                err := os.Remove(data + nodeId +"/"+ split[1])
-                if err != nil {
-                    fmt.Println("Error:", err)
-                    return
-                }
-                fmt.Println("File deleted")
-                break
 
-            default:
-                fmt.Println("Command not found")
-            }
+            } else {
+                fmt.Println("Forward")
+                isForward = true
 
-            _, err := conn.Write([]byte(response + "\n"))
-            if err != nil {
-                fmt.Println("Failed to send response to peer:", err)
-                return
-            }
-
-        } else {
-            isForwarded = true
-            fmt.Println("Not found, forwarding to next server")
-            responsePeer := connectToPeer(getRoutingNextHop(nodeId,message), message)
-            // if message contains "Found it!" send it
-            if strings.Contains(responsePeer, "Found it!")  {
-                _, err := conn.Write([]byte(responsePeer + "\n"))
-                if err != nil {
-                    fmt.Println("Failed to send response to peer:", err)
-                    return
+                responsePeer := connectToPeer(getRoutingNextHop(nodeId, chars), message)
+                fmt.Println("Response from peer:", responsePeer)
+                if strings.Contains(responsePeer, "Found it!") {
+                    fmt.Println("Found it!")
+                    _, err := conn.Write([]byte(responsePeer + " xENDx " + "\n"))
+                    if err != nil {
+                        fmt.Println("Failed to send message to peer:", err)
+                        return
+                    }
                 }
             }
         }
-            isForwarded = false
-
+        isForward = false
+        
     }
+
 }
 
 func connectToPeer(peerAddress string, command string) (string) {
@@ -293,7 +263,7 @@ func connectToPeer(peerAddress string, command string) (string) {
     fmt.Println("Connected to peer at", peerAddress)
 
     // Read and send messages to the peer.
-    message := command + "\n"
+    message := command + " xENDx " + "\n"
     _, err = conn.Write([]byte(message))
     if err != nil {
         fmt.Println("Failed to send message to peer:", err)
@@ -302,8 +272,14 @@ func connectToPeer(peerAddress string, command string) (string) {
 
     // Read the response from the peer.
     scanner := bufio.NewScanner(conn)
-    scanner.Scan()
-    response := scanner.Text()
+    response := ""
+    for scanner.Scan() {
+        response += scanner.Text() + "\n"
+        if strings.Contains(scanner.Text(),"xENDx") {
+            break
+        }
+    }
+
     fmt.Printf("Received response from %s: %s\n", peerAddress, response)
 
     return response
