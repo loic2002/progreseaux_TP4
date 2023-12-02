@@ -311,7 +311,7 @@ func main() {
 	kf := &kvFsm{db}
 
 	dataDir := "data"
-	r, err := setupRaft(path.Join(dataDir, "raft"+cfg.id), cfg.id, "localhost:"+cfg.raftPort, kf)
+	r, err := setupRaft(path.Join(dataDir, "raft"+cfg.id), cfg.id, cfg.raftPort, kf)
 	if err != nil {
 		log.Fatal(err)
 	}

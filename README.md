@@ -14,7 +14,13 @@ Se connecter via un navigateur à l'adresse http://localhost/ pour voir les fich
 ```curl "http://localhost/add/test.txt?data=test"``` pour ajouter un fichier
 
 RAFT  
-go run .\raft.go --node-id 0 --raft-port 6789 --http-port 8989
+go run .\raft.go --node-id 0 --raft-port localhost:2222 --http-port 8989
+go run .\raft.go --node-id 1 --raft-port localhost:2223 --http-port 8990
+go run .\raft.go --node-id 2 --raft-port localhost:2224 --http-port 8991
+
+
+curl 'localhost:8989/join?followerAddr=localhost:2223&followerId=node2' && curl 'localhost:8989/join?followerAddr=localhost:2224&followerId=node3'
+
 
 Client  
 go run .\client.go 127.0.0.1:667 127.0.0.1:1000
