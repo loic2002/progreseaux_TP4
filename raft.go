@@ -191,10 +191,9 @@ func (hs httpServer) defaultHandler(w http.ResponseWriter, r *http.Request) {
 func (hs httpServer) getallHandler(w http.ResponseWriter, r *http.Request) {
 	var all []string
 	hs.db.Range(func(key, value interface{}) bool {
-		if value == "" {
-			return true
+		if value != "" {
+			all = append(all, value.(string))
 		}
-		all = append(all, value.(string))
 		return true
 	})
 	rsp := struct {

@@ -11,7 +11,7 @@ A[Peer1] -->B(Peer2)
 
 Se connecter via un navigateur à l'adresse http://localhost/ pour voir les fichiers
 
-```curl "http://localhost/add/test.txt?data=test"``` pour ajouter un fichier
+```curl "http://localhost/add/?fname=test.txt&data=test"``` pour ajouter un fichier
 
 RAFT  
 go run .\raft.go --node-id 0 --raft-port localhost:2222 --http-port 8989

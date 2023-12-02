@@ -54,19 +54,31 @@ func main() {
                 return
             }
 
-            if b.Data == nil {
-                fmt.Println("Data is null")
-                return
-            }
-
-
             // Create a list of data \n
             var listData string
             for _, data := range b.Data {
                 listData += "<a href='/get/"+ data +"'>" + data + "</> <br>"
             }
-            fmt.Fprintf(w, listData)
-            
+
+            // Create a form to add data
+
+            tmpl := `<html>
+            <head>
+            <title>Home</title>
+            </head>
+            <body>
+            <form action="/add/" method="get">
+            <label for="fname">Filename:</label><br>
+            <input type="text" id="fname" name="fname"><br>
+            <label for="lname">Data:</label><br>
+            <input type="text" id="data" name="data"><br><br>
+            <input type="submit" value="Submit">
+            </form>
+            ` + listData + `
+            </body>
+            </html>`
+            fmt.Fprintf(w, tmpl)
+
     })
     http.HandleFunc("/get/", func(w http.ResponseWriter, r *http.Request) {
         filename := r.URL.Path[len("/get/"):]
@@ -79,13 +91,24 @@ func main() {
         // remove the last \n from data
         data = strings.TrimSuffix(data, "\\n")
 
-        // send data to client
-        fmt.Fprintf(w, data)
+        // when \n create new line
+        data = strings.ReplaceAll(data, "\\n", "<br>")
+
+        // 
+        tmpl := `<html>
+        <head>
+        <title>`+ filename +`</title>
+        </head>
+        <body>
+        <p>` + data + `</p>
+        </body>
+        </html>`
+        fmt.Fprintf(w, tmpl)
     })
-
+    
     http.HandleFunc("/add/", func(w http.ResponseWriter, r *http.Request) {
-
-        filename := r.URL.Path[len("/add/"):]
+        
+        filename := r.URL.Query().Get("fname")
 
         // Check if file exist in dht server
         resp, err := http.Get("http://localhost:8989/getall")
@@ -116,7 +139,6 @@ func main() {
                 return
             }
         }
-
         data := r.URL.Query().Get("data")
 
         // add to dht server curl -X POST 'localhost:8989/add' -d '{"value": "Bonjour2"}' -H 'content-type: application/json'
